@@ -3,7 +3,7 @@ import multer from "multer";
 //disk storage from multer github
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-      cb(null, "./public/temp")           //path of file
+      cb(null, "/BACKENDPRODUCTBASED/src/public/temp")           //path of file
     },
     filename: function (req, file, cb) {
     //   delete unique suffix
