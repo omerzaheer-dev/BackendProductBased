@@ -4,6 +4,24 @@ import { User } from "../models/user.model.js"
 import { uploadOnCloudinary } from "../utils/cloudinary.js"
 import { ApiResponse } from "../utils/ApiResponse.js"
 
+//we are getting iser id from login controller user when pass is checked
+const generateRefreshAndAccessTokens = async(userId) => {
+    try {
+        const user = await User.findById(userId)
+        const accesstoken = user.generateAcessToken()
+        const refreshToken = user.generateRefreshToken()
+        //access token ko hum user to da data hain but ref token ko data ma save krta hain taka password na puchna pra user sa baar baar
+        //ref token to db ma kasa add krain
+        user.refreshToken = refreshToken
+        await user.save({validateBeforeSave: false})
+        //mongose model kickin to validation kha gi pass is req flana dhimkana is required thats why we use validateBeforeSave: false
+
+        return {accesstoken , refreshToken}
+    } catch (error) {
+        throw new ApiError(500,"Something went wrong while generating ref and access tokens")
+    }
+}
+
 const registerUser = asyncHandler( async (req , res) => {
     //steps to register 
     // get user details from frontend 
@@ -80,4 +98,103 @@ const registerUser = asyncHandler( async (req , res) => {
 
 } )
 
-export { registerUser }
+
+const loginUser = asyncHandler( async (req , res) => {
+    //take username / email or password
+    //username or email
+    //find the user
+    //password check
+    //access and refresh token generate and snd to user
+    //snd to cookies secure cookies
+
+    const {email , username , password} = req.body;
+    if (!username || !email) {
+        throw new ApiError(400,"username or email is required")
+    }
+    //kuch be bhaja ho sakta ha isi lia or op in mongo db
+    const user = User.findOne({
+        $or: [{ username } , { email }]
+    })
+
+    if (!user) {
+        throw new ApiError(404," User doesnot exist ")
+    }
+
+    //to check pass we have method is pass correct requiring from methods
+    const isPasswordValid = await user.isPasswordCorrect(password)
+    if (!isPasswordValid) {
+        throw new ApiError(401," Invalid User Cradentials ")
+    }
+
+    //genrating ref access tokens
+    //await bcz db operations are using in the method below
+    const {refreshToken , accesstoken} = await generateRefreshAndAccessTokens(user._id)
+    //snd to cookies
+    //what we info snd to user
+    //not to snd pass
+    //uper wala user ka pass ref token ni ha ku ka method to bad ma call hua ha isi lia hum dobara sa find
+    //                          kra ga user ko taka reftoken aa jai updated but us to remove kr k bhaja ga
+    const loggedInUser = await User.findById(user._id).
+    select("-password -refreshToken")
+
+    //snd cookies so we have to create options object
+    //object ki zaroorat is lia ha by default any one can modify cookies but the object of options httponly
+    //                                                  and secure makes it modifyable only from the server
+    const options = {
+        httpOnly: true,
+        secure: true
+    }
+
+    return res
+    .status(200)
+    .cookie("accessToken",accesstoken,options)
+    .cookie("refreshToken",refreshToken,options)
+    .json(
+        new ApiResponse(
+            200,
+            {
+                user: loggedInUser, accesstoken, refreshToken
+            },
+            "User logged in successfully"
+        )
+    )
+
+//jb cookie ma save kr dia alag sa res bhajna ka faida ya ha ka browser save krta ha cookie ho sakta user
+//                                                         local storage ya mobile app ma save kr raha ho 
+} )
+
+const loogoutUser = asyncHandler( async (req , res) => {
+    //clear cookies
+    //reftoken to bi to clear krna ha tabi to loogout ho ga wo
+    //by middleware req.user._id
+    await User.findByIdAndUpdate(
+        req.user._id,
+        {
+            $set: {
+                refreshToken: undefined
+            }
+        },
+        {
+            new: true
+        }
+    )
+    const options = {
+        httpOnly: true,
+        secure: true
+    }
+    return res
+    .status(200)
+    .clearCookie("accesstoken",options)
+    .clearCookie("refreshToken",options)
+    .json(
+        new ApiResponse(200,{},"User LogedOut Successfully")
+    )
+})
+
+
+export {
+    registerUser,
+    loginUser,
+    loogoutUser,
+
+}

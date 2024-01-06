@@ -89,4 +89,8 @@ userSchema.methods.generateRefreshToken = function (){
     )
 }
 
+//access token short lived and refresh long lived
+//ref token we save in db also give it to user
+//we validate user by access token no need to enter pass again and again if You have ref token hit an
+//                        end point if ur ref and db ref token is same i will give u new access token
 export const User = mongoose.model("User",userSchema);
