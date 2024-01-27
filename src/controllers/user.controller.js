@@ -3,6 +3,7 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { User } from "../models/user.model.js"
 import { uploadOnCloudinary } from "../utils/cloudinary.js"
 import { ApiResponse } from "../utils/ApiResponse.js"
+import { Jwt } from "jsonwebtoken"; 
 
 //we are getting iser id from login controller user when pass is checked
 const generateRefreshAndAccessTokens = async(userId) => {
@@ -198,14 +199,58 @@ const loogoutUser = asyncHandler( async (req , res) => {
     )
 })
 
-// const refreshAccessToken = asyncHandler( async ( req , res ) => {
+const refreshAccessToken = asyncHandler( async ( req , res ) => {
+    //access token is short lived user have to login again to refresh access token but 
+    //if access token invalidates or times up 401 req frontend person dont say to login he 
+    //can hit endpoint if 401 req refresh access token you send ref token in req we match that
+    //token with database token
+    
+    //1. send ref token
+    const incommingRefreshToken = req.cookies.refreshToken || req.body.refreshToken
 
-// } )
+    if( !incommingRefreshToken ){
+        throw new ApiError(401,"unauthorized request")
+    }
+
+    //2.verify 
+    const decodedToken = jwt.verify(
+        incommingRefreshToken,
+        process.env.REFRESH_TOKEN_SECRET
+    )
+
+    //
+    const user = await User.findById(decodedToken?._id)
+    if( !user ){
+        throw new ApiError(401,"invalid refresh token")
+    }
+    //now  mach token from user nd data base 
+    if ( incommingRefreshToken !== user?.refreshToken ) {
+        throw new ApiError(401,"Refresh token is expired or used")
+    }
+
+    const options = {
+        httpOnly : true,
+        secure : true
+    }
+    const {accesstoken,newRefreshToken} = await generateRefreshAndAccessTokens(user._id)
+    return res.
+    status(200).
+    cookie("accessToken",accesstoken,options).
+    cookie("refreshToken",refreshToken,options).
+    json(
+        new ApiResponse(
+            200,
+            {"acceToken": accesstoken,"refreshToken": newRefreshToken},
+            "Access Token Refreshed"
+        )
+    )
+} )
 
 
 export {
     registerUser,
     loginUser,
     loogoutUser,
+    refreshAccessToken,
 
 }
