@@ -1,6 +1,6 @@
 import mongoose, {Schema} from "mongoose";
 import  Jwt  from "jsonwebtoken";
-import bcrypy from "bcrypt";
+import bcrypt from "bcrypt";
 
 const userSchema = new Schema(
     {
@@ -54,13 +54,14 @@ const userSchema = new Schema(
 userSchema.pre("save",async function (next) {
     if(!this.isModified("password")) return next();
 
-    this.password = await bcrypy.hash(this.password, 10)
+    this.password = await bcrypt.hash(this.password, 10)
     next()
 })
 
-userSchema.methods.isPasswordCorrect = async function (password){
-    return await bcrypt.compare(password , this.password)
-}
+userSchema.methods.isPasswordValid = async function (password) {
+
+    return await bcrypt.compare(password , this.password);
+};
 
 userSchema.methods.generateAcessToken = function (){
     return Jwt.sign(
@@ -93,4 +94,5 @@ userSchema.methods.generateRefreshToken = function (){
 //ref token we save in db also give it to user
 //we validate user by access token no need to enter pass again and again if You have ref token hit an
 //                        end point if ur ref and db ref token is same i will give u new access token
-export const User = mongoose.model("User",userSchema);
+const User = mongoose.model("User",userSchema);
+export {User};

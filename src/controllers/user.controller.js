@@ -1,5 +1,5 @@
-import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js"
+import { asyncHandler } from "../utils/asyncHandler.js";
 import { User } from "../models/user.model.js"
 import { uploadOnCloudinary } from "../utils/cloudinary.js"
 import { ApiResponse } from "../utils/ApiResponse.js"
@@ -108,21 +108,28 @@ const loginUser = asyncHandler( async (req , res) => {
     //snd to cookies secure cookies
 
     const {email , username , password} = req.body;
-    if (!username || !email) {
-        throw new ApiError(400,"username or email is required")
+    if (!( username && email )) {
+        throw new ApiError(400,"username and email is required")
     }
+
+    //if we need only one of username or email than we can use
+    // this code otherwise if we require both than upper
+    // if (!( username || email )) {
+    //     throw new ApiError(400,"username or email is required")
+    // }
     //kuch be bhaja ho sakta ha isi lia or op in mongo db
-    const user = User.findOne({
+    const user = await User.findOne({
         $or: [{ username } , { email }]
     })
+
 
     if (!user) {
         throw new ApiError(404," User doesnot exist ")
     }
 
     //to check pass we have method is pass correct requiring from methods
-    const isPasswordValid = await user.isPasswordCorrect(password)
-    if (!isPasswordValid) {
+    const ValidatePassword = await user.isPasswordValid(password);
+    if (!ValidatePassword) {
         throw new ApiError(401," Invalid User Cradentials ")
     }
 
@@ -167,7 +174,7 @@ const loogoutUser = asyncHandler( async (req , res) => {
     //clear cookies
     //reftoken to bi to clear krna ha tabi to loogout ho ga wo
     //by middleware req.user._id
-    await User.findByIdAndUpdate(
+    const updatedUser = await User.findByIdAndUpdate(
         req.user._id,
         {
             $set: {
@@ -184,12 +191,16 @@ const loogoutUser = asyncHandler( async (req , res) => {
     }
     return res
     .status(200)
-    .clearCookie("accesstoken",options)
+    .clearCookie("accessToken",options)
     .clearCookie("refreshToken",options)
     .json(
         new ApiResponse(200,{},"User LogedOut Successfully")
     )
 })
+
+// const refreshAccessToken = asyncHandler( async ( req , res ) => {
+
+// } )
 
 
 export {
